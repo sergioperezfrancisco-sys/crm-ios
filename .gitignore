@@ -1,0 +1,8 @@
+.DS_Store
+DerivedData/
+.build/
+*.xcuserstate
+xcuserdata/
+Supabase.local.plist
+*.xcconfig
+!.xcconfig.example
