@@ -32,4 +32,39 @@ CRMApp/                         Aplicación SwiftUI y navegación
 Sources/CRMKit/Domain/          Modelos y protocolos de repositorio
 Sources/CRMKit/Infrastructure/  Mocks y configuración de Supabase
 Tests/CRMKitTests/              Tests del núcleo
+web/                            Frontend web Vite + React + TypeScript
 ```
+
+## CRM web (acceso desde navegador)
+
+La carpeta `web/` contiene una versión web responsive del CRM, con la misma navegación y conceptos de dominio que la app SwiftUI: Dashboard, Contactos, Oportunidades, Agenda y Reportes. Se publica automáticamente en GitHub Pages al hacer push a `main`, por lo que el usuario puede abrirla desde Windows, macOS, iPhone o cualquier navegador sin instalar Node.js:
+
+**URL pública:** `https://sergioperezfrancisco-sys.github.io/crm-ios/`
+
+La URL estará disponible después de que termine el workflow **Deploy CRM web to GitHub Pages**. En la configuración del repositorio, activa **Settings → Pages → Source: GitHub Actions** una sola vez si GitHub Pages aún no está habilitado.
+
+### Desarrollo opcional
+
+Solo hace falta Node.js 20+ para modificar la aplicación localmente. Para usarla no se necesita ninguna instalación.
+
+Desde PowerShell:
+
+```powershell
+cd web
+npm install
+npm run dev
+```
+
+Para comprobar una compilación de producción:
+
+```powershell
+npm run lint
+npm run build
+npm run preview
+```
+
+El workflow ejecuta estos pasos automáticamente en GitHub-hosted runners. No es necesario ejecutarlos en el ordenador del usuario.
+
+### Datos mock y Supabase opcional
+
+Sin configuración adicional, la web funciona con datos mock incluidos en `web/src/data.ts` y muestra el banner **Modo demo**. Para conectar un backend real, configura los secretos `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en **Settings → Secrets and variables → Actions**. GitHub Actions los inyectará durante el build; nunca guardes valores reales en el repositorio. La integración de repositorios Supabase queda preparada para una siguiente fase, manteniendo el dominio y los mocks actuales como fallback seguro.
