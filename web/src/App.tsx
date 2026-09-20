@@ -1,10 +1,22 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { appointments as initialAppointments, contacts as initialContacts, euro, opportunities as initialOpportunities, type Appointment, type Contact, type Opportunity, type Stage } from './data'
-import { hasSupabase } from './env'
 
 type Page = 'Dashboard' | 'Contactos' | 'Oportunidades' | 'Agenda' | 'Reportes'
 type Modal = 'contact' | 'opportunity' | 'appointment' | 'settings' | 'notifications' | 'info' | 'menu' | null
+type StoredData = { contacts: Contact[]; opportunities: Opportunity[]; appointments: Appointment[] }
+const STORAGE_KEY = 'nexo-crm-data'
 const nav: { label: Page; icon: string }[] = [['Dashboard', '⌂'], ['Contactos', '♙'], ['Oportunidades', '◒'], ['Agenda', '□'], ['Reportes', '▥']].map(([label, icon]) => ({ label: label as Page, icon }))
+
+function loadStoredData(): StoredData | null {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const value = JSON.parse(raw) as StoredData
+    return value.contacts && value.opportunities && value.appointments ? value : null
+  } catch {
+    return null
+  }
+}
 
 function Avatar({ initials, color }: { initials: string; color: string }) { return <span className={`avatar ${color}`}>{initials}</span> }
 function Badge({ children }: { children: string }) { return <span className={`badge ${children.toLowerCase().replace(/ /g, '-')}`}>{children}</span> }
@@ -49,10 +61,14 @@ function FormModal({ type, close, onCreate }: { type: Exclude<Modal, null>; clos
   return <div className="modal-backdrop" role="presentation" onClick={close}><form className="modal" onSubmit={submit} onClick={e => e.stopPropagation()}><button type="button" className="modal-close" aria-label="Cerrar" onClick={close}>×</button><h2>{title}</h2><label>{field}<input required name={type === 'contact' ? 'name' : 'title'} autoFocus /></label><label>{type === 'contact' ? 'Email' : 'Detalles'}<input name="details" placeholder={type === 'contact' ? 'nombre@empresa.com' : 'Información adicional'} /></label><div className="modal-actions"><button type="button" className="filter" onClick={close}>Cancelar</button><button className="button primary">Guardar</button></div></form></div>
 }
 
-function InfoModal({ type, close }: { type: Exclude<Modal, null>; close: () => void }) { const content = type === 'settings' ? ['Configuración', 'Aquí podrás conectar Supabase, gestionar preferencias y miembros del workspace.'] : type === 'notifications' ? ['Notificaciones', 'No tienes notificaciones pendientes.'] : type === 'info' ? ['Modo demo', 'La aplicación usa datos locales de ejemplo. La conexión con Supabase es opcional.'] : ['Acciones', 'Selecciona una sección para continuar.']; return <div className="modal-backdrop" role="presentation" onClick={close}><section className="modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}><button type="button" className="modal-close" aria-label="Cerrar" onClick={close}>×</button><h2>{content[0]}</h2><p className="muted">{content[1]}</p><div className="modal-actions"><button className="button primary" onClick={close}>Entendido</button></div></section></div> }
+function InfoModal({ type, close, exportData, importData }: { type: Exclude<Modal, null>; close: () => void; exportData: () => void; importData: (event: ChangeEvent<HTMLInputElement>) => void }) {
+  const content = type === 'settings' ? ['Datos de este dispositivo', 'Tus contactos, oportunidades y citas se guardan solo en este navegador. Puedes llevarte una copia JSON o restaurarla aquí.'] : type === 'notifications' ? ['Notificaciones', 'No tienes notificaciones pendientes.'] : type === 'info' ? ['Modo local', 'Esta aplicación funciona sin cuenta ni servidor. Los cambios quedan guardados en este navegador.'] : ['Acciones', 'Selecciona una sección para continuar.']
+  return <div className="modal-backdrop" role="presentation" onClick={close}><section className="modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}><button type="button" className="modal-close" aria-label="Cerrar" onClick={close}>×</button><h2>{content[0]}</h2><p className="muted">{content[1]}</p>{type === 'settings' && <div className="data-actions"><button className="filter" onClick={exportData}>↓ Exportar copia JSON</button><label className="filter">↑ Importar copia JSON<input type="file" accept="application/json" onChange={importData} hidden /></label></div>}<div className="modal-actions"><button className="button primary" onClick={close}>Cerrar</button></div></section></div>
+}
 
 function App() {
-  const [page, setPage] = useState<Page>('Dashboard'); const [mobileOpen, setMobileOpen] = useState(false); const [modal, setModal] = useState<Modal>(null); const [feedback, setFeedback] = useState(''); const [contacts, setContacts] = useState(initialContacts); const [opportunities, setOpportunities] = useState(initialOpportunities); const [appointments, setAppointments] = useState(initialAppointments)
+  const [page, setPage] = useState<Page>('Dashboard'); const [mobileOpen, setMobileOpen] = useState(false); const [modal, setModal] = useState<Modal>(null); const [feedback, setFeedback] = useState(''); const [stored] = useState(() => loadStoredData()); const [contacts, setContacts] = useState(stored?.contacts ?? initialContacts); const [opportunities, setOpportunities] = useState(stored?.opportunities ?? initialOpportunities); const [appointments, setAppointments] = useState(stored?.appointments ?? initialAppointments)
+  useEffect(() => { window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ contacts, opportunities, appointments })) }, [contacts, opportunities, appointments])
   const notify = (message: string) => { setFeedback(message); window.setTimeout(() => setFeedback(''), 1800) }
   const create = (type: Exclude<Modal, null>, value: string) => {
     const id = Date.now()
@@ -61,8 +77,19 @@ function App() {
     if (type === 'appointment') setAppointments(current => [...current, { ...initialAppointments[0], id, title: value, date: 'Hoy, 14 jun' }])
     notify(`${value} creado correctamente`)
   }
+  const exportData = () => {
+    const blob = new Blob([JSON.stringify({ contacts, opportunities, appointments }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'nexo-crm-copia.json'; link.click(); URL.revokeObjectURL(url); notify('Copia JSON descargada')
+  }
+  const importData = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => { try { const value = JSON.parse(String(reader.result)) as StoredData; if (!Array.isArray(value.contacts) || !Array.isArray(value.opportunities) || !Array.isArray(value.appointments)) throw new Error('Formato inválido'); setContacts(value.contacts); setOpportunities(value.opportunities); setAppointments(value.appointments); notify('Copia restaurada correctamente'); closeModal() } catch { notify('No se pudo importar la copia') } }
+    reader.readAsText(file)
+  }
+  const closeModal = () => setModal(null)
   const content = useMemo(() => page === 'Dashboard' ? <Dashboard go={setPage} open={setModal} /> : page === 'Contactos' ? <ContactsPage contacts={contacts} onCreate={() => setModal('contact')} open={setModal} /> : page === 'Oportunidades' ? <OpportunitiesPage opportunities={opportunities} onCreate={() => setModal('opportunity')} open={setModal} /> : page === 'Agenda' ? <AgendaPage appointments={appointments} onCreate={() => setModal('appointment')} open={setModal} /> : <ReportsPage />, [page, contacts, opportunities, appointments])
-  return <div className="app"><aside className={mobileOpen ? 'open' : ''}><div className="brand"><span className="brand-mark">✦</span><b>nexo<span>crm</span></b></div><button className="workspace" onClick={() => setModal('settings')}><span className="workspace-icon">N</span><div><b>Nexo Studio</b><small>Workspace principal</small></div><span>⌄</span></button><nav>{nav.map(item => <button className={page === item.label ? 'selected' : ''} onClick={() => { setPage(item.label); setMobileOpen(false) }} key={item.label}><i>{item.icon}</i>{item.label}</button>)}</nav><div className="sidebar-bottom"><button onClick={() => setModal('settings')}>⚙ <span>Configuración</span></button><div className="user"><Avatar initials="SP" color="dark" /><div><b>Sergio Pérez</b><small>Administrador</small></div><button aria-label="Menú de usuario" className="more" onClick={() => setModal('menu')}>•••</button></div></div></aside><main><header><button className="menu-button" aria-label="Abrir menú" onClick={() => setMobileOpen(!mobileOpen)}>☰</button><div className="breadcrumbs">Nexo Studio <span>/</span> <b>{page}</b></div><div className="header-actions"><button className="icon-button" aria-label="Buscar contactos" onClick={() => setPage('Contactos')}>⌕</button><button className="icon-button notification" aria-label="Ver notificaciones" onClick={() => setModal('notifications')}>♢<em /></button><div className="header-user"><Avatar initials="SP" color="dark" /><span>SP</span></div></div></header><div className="content">{!hasSupabase && <div className="demo-banner"><span>✦</span><div><b>Modo demo</b><span> Estás viendo datos de ejemplo. Conecta Supabase para trabajar con tus datos reales.</span></div><button onClick={() => setModal('info')}>Más información →</button></div>}{content}</div></main>{feedback && <div className="action-feedback" role="status">{feedback}</div>}{modal && (['contact', 'opportunity', 'appointment'].includes(modal) ? <FormModal type={modal} close={() => setModal(null)} onCreate={create} /> : <InfoModal type={modal} close={() => setModal(null)} />)}</div>
+  return <div className="app"><aside className={mobileOpen ? 'open' : ''}><div className="brand"><span className="brand-mark">✦</span><b>nexo<span>crm</span></b></div><button className="workspace" onClick={() => setModal('settings')}><span className="workspace-icon">N</span><div><b>Nexo Studio</b><small>Workspace principal</small></div><span>⌄</span></button><nav>{nav.map(item => <button className={page === item.label ? 'selected' : ''} onClick={() => { setPage(item.label); setMobileOpen(false) }} key={item.label}><i>{item.icon}</i>{item.label}</button>)}</nav><div className="sidebar-bottom"><button onClick={() => setModal('settings')}>⚙ <span>Configuración</span></button><div className="user"><Avatar initials="SP" color="dark" /><div><b>Sergio Pérez</b><small>Administrador</small></div><button aria-label="Menú de usuario" className="more" onClick={() => setModal('menu')}>•••</button></div></div></aside><main><header><button className="menu-button" aria-label="Abrir menú" onClick={() => setMobileOpen(!mobileOpen)}>☰</button><div className="breadcrumbs">Nexo Studio <span>/</span> <b>{page}</b></div><div className="header-actions"><button className="icon-button" aria-label="Buscar contactos" onClick={() => setPage('Contactos')}>⌕</button><button className="icon-button notification" aria-label="Ver notificaciones" onClick={() => setModal('notifications')}>♢<em /></button><div className="header-user"><Avatar initials="SP" color="dark" /><span>SP</span></div></div></header><div className="content"><div className="demo-banner"><span>✦</span><div><b>Modo local</b><span> Tus cambios se guardan en este navegador y dispositivo.</span></div><button onClick={() => setModal('info')}>Más información →</button></div>{content}</div></main>{feedback && <div className="action-feedback" role="status">{feedback}</div>}{modal && (['contact', 'opportunity', 'appointment'].includes(modal) ? <FormModal type={modal} close={closeModal} onCreate={create} /> : <InfoModal type={modal} close={closeModal} exportData={exportData} importData={importData} />)}</div>
 }
 
 export default App

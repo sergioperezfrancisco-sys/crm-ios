@@ -65,6 +65,8 @@ npm run preview
 
 El workflow ejecuta estos pasos automáticamente en GitHub-hosted runners. No es necesario ejecutarlos en el ordenador del usuario.
 
-### Datos mock y Supabase opcional
+### Datos locales y copias de seguridad
 
-Sin configuración adicional, la web funciona con datos mock incluidos en `web/src/data.ts` y muestra el banner **Modo demo**. Para conectar un backend real, configura los secretos `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en **Settings → Secrets and variables → Actions**. GitHub Actions los inyectará durante el build; nunca guardes valores reales en el repositorio. La integración de repositorios Supabase queda preparada para una siguiente fase, manteniendo el dominio y los mocks actuales como fallback seguro.
+La web no necesita cuenta, servidor ni Supabase. En la primera visita carga datos de ejemplo y, desde ese momento, guarda contactos, oportunidades, citas y cambios en `localStorage` del navegador. Los datos permanecen en ese navegador y dispositivo; borrar los datos del sitio o usar otro dispositivo crea un espacio independiente.
+
+Desde **Configuración** puedes descargar una copia JSON o restaurarla con **Importar copia JSON**. La copia es local y no contiene secretos. Si no existe una copia guardada, la app vuelve a cargar los datos de ejemplo incluidos en `web/src/data.ts`.
