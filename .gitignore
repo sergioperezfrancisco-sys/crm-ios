@@ -6,3 +6,7 @@ xcuserdata/
 Supabase.local.plist
 *.xcconfig
 !.xcconfig.example
+web/node_modules/
+web/dist/
+web/.env
+web/.env.local
