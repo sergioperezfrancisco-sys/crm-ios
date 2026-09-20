@@ -90,7 +90,15 @@ function PdfImportModal({ close, onImport }: { close: () => void; onImport: (con
       let text = ''
       for (let page = 1; page <= pdf.numPages; page += 1) {
         const content = await pdf.getPage(page).then(current => current.getTextContent())
-        text += `${content.items.map(item => 'str' in item ? item.str : '').join(' ')}\n`
+        const lines = new Map<number, string[]>()
+        content.items.forEach(item => {
+          if (!('str' in item) || !item.str.trim()) return
+          const y = Math.round(item.transform[5])
+          const line = lines.get(y) ?? []
+          line.push(item.str)
+          lines.set(y, line)
+        })
+        text += `${[...lines.entries()].sort((a, b) => b[0] - a[0]).map(([, line]) => line.join(' ')).join('\n')}\n`
       }
       setRows(parseContactText(text))
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudo leer el PDF en este navegador.') }
