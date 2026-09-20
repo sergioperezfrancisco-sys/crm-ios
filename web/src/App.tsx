@@ -106,7 +106,7 @@ function InfoModal({ type, close, exportData, importData }: { type: Exclude<Moda
 }
 
 function App() {
-  const [page, setPage] = useState<Page>('Dashboard'); const [mobileOpen, setMobileOpen] = useState(false); const [modal, setModal] = useState<Modal>(null); const [feedback, setFeedback] = useState(''); const [stored] = useState(() => loadStoredData()); const [contacts, setContacts] = useState((stored?.contacts ?? initialContacts).map(contact => ({ clientType: 'Hospital/Clínica' as ClientType, ...contact }))); const [opportunities, setOpportunities] = useState(stored?.opportunities ?? initialOpportunities); const [appointments, setAppointments] = useState(stored?.appointments ?? initialAppointments)
+  const [page, setPage] = useState<Page>('Dashboard'); const [mobileOpen, setMobileOpen] = useState(false); const [modal, setModal] = useState<Modal>(null); const [feedback, setFeedback] = useState(''); const [stored] = useState(() => loadStoredData()); const [contacts, setContacts] = useState((stored?.contacts ?? initialContacts).map(contact => ({ ...contact, clientType: contact.clientType ?? 'Hospital/Clínica' as ClientType }))); const [opportunities, setOpportunities] = useState(stored?.opportunities ?? initialOpportunities); const [appointments, setAppointments] = useState(stored?.appointments ?? initialAppointments)
   useEffect(() => { window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ contacts, opportunities, appointments })) }, [contacts, opportunities, appointments])
   const notify = (message: string) => { setFeedback(message); window.setTimeout(() => setFeedback(''), 1800) }
   const create = (type: Exclude<Modal, null>, value: string) => {
