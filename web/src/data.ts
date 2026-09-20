@@ -1,15 +1,16 @@
 export type ContactStatus = 'Cliente' | 'Lead' | 'Inactivo'
+export type ClientType = 'Hospital/Clínica' | 'Doctor'
 export type Stage = 'Prospección' | 'Propuesta' | 'Negociación' | 'Ganada' | 'Perdida'
-export interface Contact { id: number; name: string; company: string; email: string; phone: string; status: ContactStatus; initials: string; color: string }
+export interface Contact { id: number; name: string; company: string; email: string; phone: string; status: ContactStatus; clientType: ClientType; specialty?: string; initials: string; color: string }
 export interface Opportunity { id: number; title: string; company: string; value: number; stage: Stage; close: string }
 export interface Appointment { id: number; title: string; date: string; time: string; contact?: string; type: string }
 
 export const contacts: Contact[] = [
-  { id: 1, name: 'Ana García', company: 'Acme', email: 'ana@acme.example', phone: '+34 600 000 001', status: 'Cliente', initials: 'AG', color: 'coral' },
-  { id: 2, name: 'Luis Martín', company: 'Northwind', email: 'luis@northwind.example', phone: '+34 600 000 002', status: 'Lead', initials: 'LM', color: 'violet' },
-  { id: 3, name: 'Sofía López', company: 'Globex', email: 'sofia@globex.example', phone: '+34 600 000 003', status: 'Cliente', initials: 'SL', color: 'teal' },
-  { id: 4, name: 'Carlos Ruiz', company: 'Umbrella', email: 'carlos@umbrella.example', phone: '+34 600 000 004', status: 'Lead', initials: 'CR', color: 'amber' },
-  { id: 5, name: 'Elena Torres', company: 'Initech', email: 'elena@initech.example', phone: '+34 600 000 005', status: 'Inactivo', initials: 'ET', color: 'blue' },
+  { id: 1, name: 'Ana García', company: 'Acme', email: 'ana@acme.example', phone: '+34 600 000 001', status: 'Cliente', clientType: 'Hospital/Clínica', initials: 'AG', color: 'coral' },
+  { id: 2, name: 'Luis Martín', company: 'Northwind', email: 'luis@northwind.example', phone: '+34 600 000 002', status: 'Lead', clientType: 'Doctor', specialty: 'Cardiología', initials: 'LM', color: 'violet' },
+  { id: 3, name: 'Sofía López', company: 'Globex', email: 'sofia@globex.example', phone: '+34 600 000 003', status: 'Cliente', clientType: 'Hospital/Clínica', initials: 'SL', color: 'teal' },
+  { id: 4, name: 'Carlos Ruiz', company: 'Umbrella', email: 'carlos@umbrella.example', phone: '+34 600 000 004', status: 'Lead', clientType: 'Doctor', specialty: 'Traumatología', initials: 'CR', color: 'amber' },
+  { id: 5, name: 'Elena Torres', company: 'Initech', email: 'elena@initech.example', phone: '+34 600 000 005', status: 'Inactivo', clientType: 'Hospital/Clínica', initials: 'ET', color: 'blue' },
 ]
 export const opportunities: Opportunity[] = [
   { id: 1, title: 'Renovación anual', company: 'Acme', value: 18500, stage: 'Negociación', close: '12 jun 2024' },

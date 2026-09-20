@@ -70,3 +70,17 @@ El workflow ejecuta estos pasos automáticamente en GitHub-hosted runners. No es
 La web no necesita cuenta, servidor ni Supabase. En la primera visita carga datos de ejemplo y, desde ese momento, guarda contactos, oportunidades, citas y cambios en `localStorage` del navegador. Los datos permanecen en ese navegador y dispositivo; borrar los datos del sitio o usar otro dispositivo crea un espacio independiente.
 
 Desde **Configuración** puedes descargar una copia JSON o restaurarla con **Importar copia JSON**. La copia es local y no contiene secretos. Si no existe una copia guardada, la app vuelve a cargar los datos de ejemplo incluidos en `web/src/data.ts`.
+
+### Importar clientes desde PDF
+
+En **Contactos → Importar PDF** puedes seleccionar un PDF con texto seleccionable. El procesamiento se realiza íntegramente en el navegador con `pdfjs-dist`: el archivo no se sube ni se envía a ningún servidor. Antes de guardar aparece una previsualización editable.
+
+Formato recomendado: una primera línea de cabecera y una fila por cliente, con columnas separadas por coma, punto y coma, tabulador o `|`:
+
+```text
+nombre;empresa;email;telefono;tipo;especialidad
+Dra. Marta Ruiz;Clínica Centro;marta@example.com;+34 600 000 010;Doctor;Cardiología
+Hospital Norte;Hospital Norte;contacto@hospital.example;+34 900 000 011;Hospital/Clínica;
+```
+
+El tipo se normaliza a **Doctor** o **Hospital/Clínica** y después puede filtrarse en Contactos. Solo se admiten PDFs con texto seleccionable; un PDF escaneado como imagen necesita OCR externo y se rechaza con un mensaje claro. El importador limita su alcance a filas reconocibles y exige al menos nombre, empresa y una tercera columna.
