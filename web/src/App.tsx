@@ -65,6 +65,10 @@ function FormModal({ type, close, onCreate }: { type: Exclude<Modal, null>; clos
 }
 
 type ImportedContact = Pick<Contact, 'name' | 'company' | 'email' | 'phone' | 'clientType' | 'specialty'>
+type ImportedOpportunity = Pick<Opportunity, 'title' | 'company' | 'value' | 'stage' | 'close'>
+type ImportedItem = { kind: 'contact'; data: ImportedContact } | { kind: 'opportunity'; data: ImportedOpportunity } | { kind: 'note'; text: string; section: string }
+type ParsedReport = { items: ImportedItem[]; sections: string[] }
+
 function parseContactText(text: string): ImportedContact[] {
   const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
   if (lines.length < 2) throw new Error('El PDF no contiene al menos una fila de contactos con texto seleccionable.')
@@ -80,11 +84,36 @@ function parseContactText(text: string): ImportedContact[] {
   return contacts
 }
 
-function PdfImportModal({ close, onImport }: { close: () => void; onImport: (contacts: ImportedContact[]) => void }) {
-  const [rows, setRows] = useState<ImportedContact[]>([]); const [error, setError] = useState(''); const [loading, setLoading] = useState(false)
+function parseReportText(text: string): ParsedReport {
+  const lines = text.split(/\r?\n/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const items: ImportedItem[] = []; const sections = new Set<string>(); let section = 'Informe'
+  const amount = /(?:€|EUR)\s?([\d.,]+)|([\d.,]+)\s?(?:€|EUR)/i
+  const date = /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b/
+  for (const line of lines) {
+    if (/^(?:[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s-]{3,}|(?:\d+\.)\s+[A-ZÁÉÍÓÚÑ].*)$/.test(line)) { section = line; sections.add(section) }
+    const foundAmount = line.match(amount)
+    const foundDate = line.match(date)
+    const clientMatch = line.match(/^(?:cliente|hospital|cl[ií]nica|doctor|dra?\.?|dr\.?)\s*[:\-]\s*(.+)$/i)
+    if (clientMatch) {
+      const name = clientMatch[1].trim(); const doctor = /doctor|dra?\.?|dr\./i.test(line)
+      items.push({ kind: 'contact', data: { name, company: doctor ? '' : name, email: '', phone: '', clientType: doctor ? 'Doctor' : 'Hospital/Clínica', specialty: '' } })
+      continue
+    }
+    if (foundAmount && /(oportunidad|venta|pipeline|contrato|propuesta|renovaci|ingreso|importe)/i.test(line)) {
+      const numeric = (foundAmount[1] || foundAmount[2] || '').replace(/\./g, '').replace(',', '.')
+      items.push({ kind: 'opportunity', data: { title: line.replace(amount, '').trim(), company: '', value: Number(numeric) || 0, stage: /ganad|cerrad|factur/i.test(line) ? 'Ganada' : 'Prospección', close: foundDate?.[0] || '' } })
+      continue
+    }
+    if (foundAmount || foundDate || /(?:nota|riesgo|recomendaci|objetivo|comentario|conclusi)/i.test(line)) items.push({ kind: 'note', section, text: line })
+  }
+  return { items, sections: [...sections] }
+}
+
+function PdfImportModal({ close, onImport }: { close: () => void; onImport: (items: ImportedItem[]) => void }) {
+  const [items, setItems] = useState<ImportedItem[]>([]); const [sections, setSections] = useState<string[]>([]); const [error, setError] = useState(''); const [loading, setLoading] = useState(false)
   const readFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; if (!file) return
-    setLoading(true); setError(''); setRows([])
+    setLoading(true); setError(''); setItems([]); setSections([])
     try {
       const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise
       let text = ''
@@ -100,12 +129,16 @@ function PdfImportModal({ close, onImport }: { close: () => void; onImport: (con
         })
         text += `${[...lines.entries()].sort((a, b) => b[0] - a[0]).map(([, line]) => line.join(' ')).join('\n')}\n`
       }
-      setRows(parseContactText(text))
+      const parsed = parseReportText(text); if (!parsed.items.length) {
+        try { const contacts = parseContactText(text); setItems(contacts.map(data => ({ kind: 'contact', data }))) }
+        catch { throw new Error('El PDF contiene texto, pero no se reconocieron clientes, oportunidades ni líneas de informe. Revisa el formato recomendado.') }
+      } else { setItems(parsed.items); setSections(parsed.sections) }
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudo leer el PDF en este navegador.') }
     finally { setLoading(false) }
   }
-  const update = (index: number, field: keyof ImportedContact, value: string) => setRows(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row))
-  return <div className="modal-backdrop" role="presentation" onClick={close}><section className="modal pdf-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}><button type="button" className="modal-close" aria-label="Cerrar" onClick={close}>×</button><h2>Importar clientes desde PDF</h2><p className="muted">Procesamiento local: el archivo no se sube a ningún servidor.</p><label className="file-picker">Seleccionar PDF<input type="file" accept="application/pdf,.pdf" onChange={readFile} /></label><p className="import-help">Formato recomendado: cabecera y filas separadas por coma, punto y coma, tabulador o |. Columnas: nombre, empresa, email, teléfono, tipo (Hospital/Clínica o Doctor), especialidad. Solo se admiten PDF con texto seleccionable.</p>{loading && <p className="muted">Leyendo PDF…</p>}{error && <p className="import-error" role="alert">{error}</p>}{rows.length > 0 && <><h3>Previsualización editable ({rows.length})</h3><div className="import-preview">{rows.map((row, index) => <div className="import-row" key={`${row.name}-${index}`}><input aria-label={`Nombre ${index + 1}`} value={row.name} onChange={e => update(index, 'name', e.target.value)} /><input aria-label={`Empresa ${index + 1}`} value={row.company} onChange={e => update(index, 'company', e.target.value)} /><select aria-label={`Tipo ${index + 1}`} value={row.clientType} onChange={e => update(index, 'clientType', e.target.value)}><option>Hospital/Clínica</option><option>Doctor</option></select><input aria-label={`Email ${index + 1}`} value={row.email} onChange={e => update(index, 'email', e.target.value)} /></div>)}</div><div className="modal-actions"><button className="filter" onClick={close}>Cancelar</button><button className="button primary" onClick={() => { onImport(rows); close() }}>Guardar clientes</button></div></>}</section></div>
+  const update = (index: number, field: string, value: string) => setItems(current => current.map((item, itemIndex) => itemIndex !== index ? item : item.kind === 'contact' ? { ...item, data: { ...item.data, [field]: value } } : item.kind === 'opportunity' ? { ...item, data: { ...item.data, [field]: field === 'value' ? Number(value) : value } } : { ...item, text: value }))
+  const contactsCount = items.filter(item => item.kind === 'contact').length; const opportunitiesCount = items.filter(item => item.kind === 'opportunity').length; const notesCount = items.filter(item => item.kind === 'note').length
+  return <div className="modal-backdrop" role="presentation" onClick={close}><section className="modal pdf-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}><button type="button" className="modal-close" aria-label="Cerrar" onClick={close}>×</button><h2>Importar informe PDF</h2><p className="muted">Procesamiento local: el archivo no se sube a ningún servidor. Solo se guardan entidades explícitas.</p><label className="file-picker">Seleccionar PDF<input type="file" accept="application/pdf,.pdf" onChange={readFile} /></label><p className="import-help">Detecta filas de clientes, líneas con importes/oportunidades y notas con su sección de origen. No inventa nombres, estados o fechas; el texto ambiguo queda como nota.</p>{loading && <p className="muted">Leyendo PDF…</p>}{error && <p className="import-error" role="alert">{error}</p>}{sections.length > 0 && <p className="import-sections">Secciones detectadas: {sections.join(' · ')}</p>}{items.length > 0 && <><h3>Previsualización editable ({contactsCount} clientes · {opportunitiesCount} oportunidades · {notesCount} notas)</h3><div className="import-preview">{items.map((item, index) => item.kind === 'contact' ? <div className="import-row" key={index}><input aria-label={`Nombre ${index + 1}`} value={item.data.name} onChange={e => update(index, 'name', e.target.value)} /><input aria-label={`Empresa ${index + 1}`} value={item.data.company} onChange={e => update(index, 'company', e.target.value)} /><select aria-label={`Tipo ${index + 1}`} value={item.data.clientType} onChange={e => update(index, 'clientType', e.target.value)}><option>Hospital/Clínica</option><option>Doctor</option></select><input aria-label={`Email ${index + 1}`} value={item.data.email} onChange={e => update(index, 'email', e.target.value)} /></div> : item.kind === 'opportunity' ? <div className="import-row" key={index}><input value={item.data.title} onChange={e => update(index, 'title', e.target.value)} /><input value={item.data.company} placeholder="Empresa" onChange={e => update(index, 'company', e.target.value)} /><select value={item.data.stage} onChange={e => update(index, 'stage', e.target.value)}>{(['Prospección', 'Propuesta', 'Negociación', 'Ganada', 'Perdida'] as Stage[]).map(stage => <option key={stage}>{stage}</option>)}</select><input type="number" value={item.data.value} onChange={e => update(index, 'value', e.target.value)} /></div> : <div className="import-note" key={index}><b>{item.section}</b><textarea value={item.text} onChange={e => update(index, 'text', e.target.value)} /></div>)}</div><div className="modal-actions"><button className="filter" onClick={close}>Cancelar</button><button className="button primary" onClick={() => { onImport(items); close() }}>Guardar detecciones</button></div></>}</section></div>
 }
 
 function InfoModal({ type, close, exportData, importData }: { type: Exclude<Modal, null>; close: () => void; exportData: () => void; importData: (event: ChangeEvent<HTMLInputElement>) => void }) {
@@ -124,7 +157,12 @@ function App() {
     if (type === 'appointment') setAppointments(current => [...current, { ...initialAppointments[0], id, title: value, date: 'Hoy, 14 jun' }])
     notify(`${value} creado correctamente`)
   }
-  const importContacts = (rows: ImportedContact[]) => { setContacts(current => [...current, ...rows.map((row, index) => ({ ...row, id: Date.now() + index, status: 'Lead' as const, initials: row.name.split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase(), color: 'teal' }))]); notify(`${rows.length} clientes importados`) }
+  const importContacts = (items: ImportedItem[]) => {
+    const now = Date.now(); const importedContacts = items.filter(item => item.kind === 'contact').map((item, index) => ({ ...item.data, id: now + index, status: 'Lead' as const, initials: item.data.name.split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase(), color: 'teal' }))
+    const importedOpportunities = items.filter(item => item.kind === 'opportunity').map((item, index) => ({ ...item.data, id: now + 1000 + index }))
+    setContacts(current => [...current, ...importedContacts]); setOpportunities(current => [...current, ...importedOpportunities])
+    const count = importedContacts.length + importedOpportunities.length; notify(`${count} detecciones guardadas${items.some(item => item.kind === 'note') ? ' · Las notas quedan solo en la revisión' : ''}`)
+  }
   const exportData = () => {
     const blob = new Blob([JSON.stringify({ contacts, opportunities, appointments }, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'nexo-crm-copia.json'; link.click(); URL.revokeObjectURL(url); notify('Copia JSON descargada')

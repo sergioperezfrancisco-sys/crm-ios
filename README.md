@@ -84,3 +84,13 @@ Hospital Norte;Hospital Norte;contacto@hospital.example;+34 900 000 011;Hospital
 ```
 
 El tipo se normaliza a **Doctor** o **Hospital/Clínica** y después puede filtrarse en Contactos. Solo se admiten PDFs con texto seleccionable; un PDF escaneado como imagen necesita OCR externo y se rechaza con un mensaje claro. El importador limita su alcance a filas reconocibles y exige al menos nombre, empresa y una tercera columna.
+
+#### Informes narrativos y planes de ventas
+
+Un informe como `Análisis Anual de Ventas y Plan de Ventas Detallado` no es necesariamente una tabla de clientes. El importador intenta detectar únicamente:
+
+- líneas explícitas de cliente/hospital/clínica/doctor;
+- líneas que mencionan oportunidad, venta, pipeline, contrato, propuesta, renovación o ingresos junto con un importe;
+- fechas e importes encontrados en notas, objetivos, riesgos o recomendaciones.
+
+Cada detección aparece clasificada como **cliente**, **oportunidad** o **nota**, con sección de origen cuando se reconoce. La previsualización permite editar nombre, tipo, fase, importe y texto antes de guardar. El sistema no deduce clientes ni estados a partir de gráficos, porcentajes o prosa ambigua: esas partes se conservan como notas o quedan fuera. Los PDFs escaneados sin capa de texto requieren OCR y no se procesan.
